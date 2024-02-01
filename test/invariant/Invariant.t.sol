@@ -8,6 +8,7 @@ import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import { PoolFactory } from "../../src/PoolFactory.sol";
 
 import { TSwapPool } from "../../src/PoolFactory.sol";
+import { Handler } from "./Handler.t.sol";
 
 contract Invariant is StdInvariant, Test {
     ERC20Mock poolToken;
@@ -15,6 +16,8 @@ contract Invariant is StdInvariant, Test {
 
     PoolFactory factory;
     TSwapPool pool;
+
+    Handler handler;
 
     int256 constant STARTING_X = 100e18; // poolToken
     int256 constant STARTING_Y = 50e18; // weth
@@ -38,7 +41,21 @@ contract Invariant is StdInvariant, Test {
 
         pool.deposit(uint256(STARTING_Y), uint256(STARTING_Y), uint256(STARTING_X), uint64(block.timestamp));
         vm.stopPrank();
+
+        handler = new Handler(pool);
+        bytes4[] memory selectors = new bytes4[](2);
+        selectors[0] = Handler.deposit.selector;
+        selectors[1] = Handler.swapPoolTokenForWethBasedOnOutputWeth.selector;
+
+        targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
+        targetContract(address(handler));
     }
 
-    function statefulFazz_constantProductFormulaStaysTheSame() public { }
+    function invariant_deltaXFollowsMath() public {
+        assertEq(handler.actualDeltaX(), handler.expectedDeltaX());
+    }
+
+    function invariant_deltaYFollowsMath() public {
+        assertEq(handler.actualDeltaY(), handler.expectedDeltaY());
+    }
 }

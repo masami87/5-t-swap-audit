@@ -14,10 +14,10 @@ contract Handler is Test {
     uint256 startingY;
     uint256 startingX;
 
-    int256 expectedDeltaX;
-    int256 expectedDeltaY;
-    int256 actualDeltaX;
-    int256 actualDeltaY;
+    int256 public expectedDeltaX;
+    int256 public expectedDeltaY;
+    int256 public actualDeltaX;
+    int256 public actualDeltaY;
 
     address liquidityProvider = makeAddr("liquidityProvider");
     address swapper = makeAddr("swapper");
@@ -29,8 +29,9 @@ contract Handler is Test {
     }
 
     function swapPoolTokenForWethBasedOnOutputWeth(uint256 outputWeth) public {
-        outputWeth = bound(outputWeth, 0, type(uint64).max);
-        if (outputWeth >= weth.balanceOf(address(this))) {
+        uint256 minWeth = pool.getMinimumWethDepositAmount();
+        outputWeth = bound(outputWeth, minWeth, weth.balanceOf(address(pool)));
+        if (outputWeth >= weth.balanceOf(address(pool))) {
             return;
         }
 
@@ -39,7 +40,7 @@ contract Handler is Test {
             outputWeth, poolToken.balanceOf(address(pool)), weth.balanceOf(address(pool))
         );
 
-        if (poolTokenAmount >= poolToken.balanceOf(address(this))) {
+        if (poolTokenAmount >= poolToken.balanceOf(address(pool))) {
             return;
         }
 
@@ -65,7 +66,8 @@ contract Handler is Test {
     }
 
     function deposit(uint256 wethAmount) public {
-        wethAmount = bound(wethAmount, 0, type(uint64).max);
+        uint256 minWeth = pool.getMinimumWethDepositAmount();
+        wethAmount = bound(wethAmount, minWeth, type(uint64).max);
         startingY = weth.balanceOf(address(pool));
         startingX = poolToken.balanceOf(address(pool));
         expectedDeltaY = int256(wethAmount);
