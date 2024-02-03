@@ -93,6 +93,7 @@ contract TSwapPool is ERC20 {
         uint256 wethToDeposit,
         uint256 minimumLiquidityTokensToMint,
         uint256 maximumPoolTokensToDeposit,
+        // @audit deadline not being used
         uint64 deadline
     )
         external
@@ -104,6 +105,7 @@ contract TSwapPool is ERC20 {
         }
         if (totalLiquidityTokenSupply() > 0) {
             uint256 wethReserves = i_wethToken.balanceOf(address(this));
+            // @audit-info not used
             uint256 poolTokenReserves = i_poolToken.balanceOf(address(this));
             // Our invariant says weth, poolTokens, and liquidity tokens must always have the same ratio after the
             // initial deposit
@@ -135,6 +137,8 @@ contract TSwapPool is ERC20 {
             // This will be the "initial" funding of the protocol. We are starting from blank here!
             // We just have them send the tokens in, and we mint liquidity tokens based on the weth
             _addLiquidityMintAndTransfer(wethToDeposit, maximumPoolTokensToDeposit, wethToDeposit);
+
+            // @audit-info it would be better if this follow CEI
             liquidityTokensToMint = wethToDeposit;
         }
     }
@@ -151,6 +155,7 @@ contract TSwapPool is ERC20 {
         private
     {
         _mint(msg.sender, liquidityTokensToMint);
+        // @audit low params wrong
         emit LiquidityAdded(msg.sender, poolTokensToDeposit, wethToDeposit);
 
         // Interactions
@@ -227,6 +232,8 @@ contract TSwapPool is ERC20 {
         uint256 inputAmountMinusFee = inputAmount * 997;
         uint256 numerator = inputAmountMinusFee * outputReserves;
         uint256 denominator = (inputReserves * 1000) + inputAmountMinusFee;
+        // NOTE: 这个公式是按照 (x + 0.997 * dx) * (y - dy) = xy 这个公式推导出来的
+        // 也就是想输入收取fee，输出不收取fee
         return numerator / denominator;
     }
 
@@ -241,9 +248,11 @@ contract TSwapPool is ERC20 {
         revertIfZero(outputReserves)
         returns (uint256 inputAmount)
     {
+        // @audit should be 1000
         return ((inputReserves * outputAmount) * 10000) / ((outputReserves - outputAmount) * 997);
     }
 
+    // @audit where the netspec?
     function swapExactInput(
         IERC20 inputToken,
         uint256 inputAmount,
@@ -251,10 +260,14 @@ contract TSwapPool is ERC20 {
         uint256 minOutputAmount,
         uint64 deadline
     )
+        //@audit using external modifier to reduce gas costs
         public
         revertIfZero(inputAmount)
         revertIfDeadlinePassed(deadline)
-        returns (uint256 output)
+        returns (
+            // @audit low
+            uint256 output
+        )
     {
         uint256 inputReserves = inputToken.balanceOf(address(this));
         uint256 outputReserves = outputToken.balanceOf(address(this));
@@ -284,6 +297,9 @@ contract TSwapPool is ERC20 {
 
         inputAmount = getInputAmountBasedOnOutput(outputAmount, inputReserves, outputReserves);
 
+        // @audit need a max input amount
+        // MEV attack
+
         _swap(inputToken, inputAmount, outputToken, outputAmount);
     }
 
@@ -293,6 +309,7 @@ contract TSwapPool is ERC20 {
      * @return wethAmount amount of WETH received by caller
      */
     function sellPoolTokens(uint256 poolTokenAmount) external returns (uint256 wethAmount) {
+        // @audit should use swapExactInput
         return swapExactOutput(i_poolToken, i_wethToken, poolTokenAmount, uint64(block.timestamp));
     }
 
